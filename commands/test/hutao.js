@@ -1,10 +1,19 @@
 const { SlashCommandBuilder } = require('discord.js');
+
+// Character AI
 const CharacterAI = require("node_characterai");
 const characterAI = new CharacterAI();
+
+// Concurrent Request
+const {Mutex} = require('async-mutex');
+const mutex = new Mutex();
+
+// Env
 require('dotenv').config();
 
+
 module.exports = {
-	cooldown: 5,
+	cooldown: 0,
 	data: new SlashCommandBuilder()
 		.setName('hutao')
 		.setDescription('Chat with Hu Tao!')
@@ -13,6 +22,9 @@ module.exports = {
                 .setDescription('Insert your message')
                 .setRequired(true)),
 	async execute(interaction) {
+        // Generate/Get Chat Id
+        const chatId = interaction.user.id;
+
         await interaction.deferReply();
 
         // Authenticating as a guest (use `.authenticateWithToken()` to use an account)
@@ -26,8 +38,9 @@ module.exports = {
         // Create a chat object to interact with the conversation
         const chat = await characterAI.createOrContinueChat(characterId);
 
-        // Send a message
-        const response = await chat.sendAndAwaitResponse(interaction.options.getString("message"), true);
+        const response = await mutex.runExclusive(async () => {
+            return await chat.sendAndAwaitResponse(interaction.options.getString("message"), true);
+        });
 
 		interaction.editReply(response.text)
 	},
